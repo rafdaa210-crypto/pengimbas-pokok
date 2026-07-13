@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pengenal Pokok Tempatan</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5dc;
+        }
+        video, canvas {
+            width: 100%;
+            border-radius: 8px;
+            background: #000;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            font-size: 18px;
+            margin: 15px 0;
+            background: #2e8b57;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:disabled { background: #999; cursor: not-allowed; }
+        .status { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .info-box { display: none; padding: 15px; background: white; border-radius: 8px; margin-top: 15px; }
+        h2, h3 { margin: 5px 0; }
+        .progress-wrap { width: 100%; background: #ddd; border-radius: 6px; overflow: hidden; height: 10px; margin-top: 6px; display: none; }
+        .progress-bar { height: 100%; width: 0%; background: #2e8b57; transition: width .2s; }
+    </style>
+</head>
+<body>
+    <h1 style="text-align:center">🔍 Pengenal Pokok Tempatan</h1>
+
+    <video id="kamera" autoplay playsinline muted></video>
+    <canvas id="kanvas" style="display:none"></canvas>
+
+    <div class="status" id="statusTeks">Memulakan kamera...</div>
+    <div class="progress-wrap" id="progressWrap"><div class="progress-bar" id="progressBar"></div></div>
+    <button id="butangImbas" disabled>📷 Imbas Pokok</button>
+
+    <div class="info-box" id="maklumatKotak">
+        <h2 id="namaPokok"></h2>
+        <p style="color:#666;font-style:italic" id="namaSaintifik"></p>
+        <p><strong>Kesesuaian Tanah:</strong> <span id="keteranganPokok"></span></p>
+        <p><strong>Inovasi & Kegunaan:</strong> <span id="kegunaanPokok"></span></p>
+        <p><strong>Tahap Padanan:</strong> <span id="tahapPadanan"></span></p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest"></script>
+    <script>
+        const video = document.getElementById('kamera');
+        const kanvas = document.getElementById('kanvas');
+        const konteks = kanvas.getContext('2d');
+        const statusTeks = document.getElementById('statusTeks');
+        const butangImbas = document.getElementById('butangImbas');
+        const progressWrap = document.getElementById('progressWrap');
+        const progressBar = document.getElementById('progressBar');
+        const maklumatKotak = document.getElementById('maklumatKotak');
+        const namaPokok = document.getElementById('namaPokok');
+        const namaSaintifik = document.getElementById('namaSaintifik');
+        const keteranganPokok = document.getElementById('keteranganPokok');
+        const kegunaanPokok = document.getElementById('kegunaanPokok');
+        const tahapPadanan = document.getElementById('tahapPadanan');
+
+        let model;
+
+        // SENARAI PENUH 16 POKOK - MAKLUMAT ANDA SEMUA DIPELIHARA
+        let senaraiPokok = [
+        {
+              kod: "POKOK-04",
+              nama: "Bunga Telang",
+              saintifik: "Clitoria ternatea",
+              keterangan: "Boleh tumbuh di pelbagai jenis tanah tetapi elakkan tanah yang sentiasa berair atau berlopak.",
+              inovasi: [
+              "Pewarna semula jadi:Boleh jadikan pewarna nasi,kuih,minuman, atau sabun semula jadi kerana tiada bahan kimia dan selamat digunakan.",
+              "Kraf:Bunga segar boleh dijadikan hiasan kek, salad, atau bahan kertas kraf tangan yang unik"
+              ],
+              gambarRujukan:[
+              "https://img.sanishtech.com/u/8ccc6debbec3d4760fc2624a07e201fa.jpeg",
+              "https://img.sanishtech.com/u/757917df17652b9612ca0861b9b9bf76.jpeg",
+              "https://img.sanishtech.com/u/0b980e4487b33862fc641c54724328f5.jpeg",
+              "https://img.sanishtech.com/u/492329e9a097b77b53395336a10751f8.jpeg",
+              "https://img.sanishtech.com/u/41d2710a11dc4e933a3be7f0dffca142.jpeg",
+              "https://img.sanishtech.com/u/24a1f7e155ab5096e14968baffeab0eb.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-05",
+              nama: "Lidah Buaya",
+              saintifik: "Aloe Vera",
+              keterangan: "sangat tidak tahan tanah yang berair atau padat",
+              inovasi: [
+              "Gel yang bersih boleh dijadikan: Losyen pelembap dan rawatan luka bakar ringan, Minuman kesihatan, pencuci muka semula jadi, Bahan tambah sabun, syampu atau topeng muka",
+              "Baja dan Perangsang Tumbuh Semula Jadi: Air rebusan daun lidah buaya segar → baja daun penggalak tumbuh: sembur pada pokok lain, kurangkan serangan kulat dan naikkan daya tahan tanaman. Rendam benih dalam larutan gel cair 10 minit sebelum tanam → bercambah lebih cepat dan tahan penyakit."
+              ],
+              gambarRujukan: [
+              "https://img.sanishtech.com/u/96b828a30892eed3a7dfd9b3127ecdf2.jpeg",
+              "https://img.sanishtech.com/u/ed0f33b447236cb236a7285fbaaaa6d3.jpeg",
+              "https://img.sanishtech.com/u/d15f74ed2ab72d3d83fb4ae8e91ed22e.jpeg",
+              "https://img.sanishtech.com/u/797ea01ef71eade9303703c1e913491f.jpeg",
+              "https://img.sanishtech.com/u/95feb7294d2555e10ffe0fdb09bba045.jpeg",
+              "https://img.sanishtech.com/u/a6a286658aa3430788d7aad1fa71e9c5.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-06",
+              nama: "Pokok Ciku",
+              saintifik: "Manilkara zapota",
+              keterangan: "Boleh tumbuh di tanah berlempung atau berpasir , tetapi elakkan tanah yang sentiasa berair kerana akar mudah rosak",
+              inovasi:[
+              "Serbaguna:Buah boleh jadi jem, puri, kek, atau jus dan getah batang asal bahan utama gusi kunyah serta kayu keras tahan air digunakan untuk perabot"
+              ],
+              gambarRujukan:[
+              "https://img.sanishtech.com/u/3e0882f53b669e200f9bc1d8626c446f.jpeg",
+              "https://img.sanishtech.com/u/be61d17b1cacde13c20fb5bff867e64d.jpeg",
+              "https://img.sanishtech.com/u/ca60234169b2dcc2d0dc94b160630587.jpeg",
+              "https://img.sanishtech.com/u/66df773a58e19d27d005a0790b30dfae.jpeg",
+              "https://img.sanishtech.com/u/7a4f03f529f54b677922de44be96cc3c.jpeg",
+              "https://img.sanishtech.com/u/3d1bc659c6b66e63fc94454c13406083.jpeg",
+              "https://img.sanishtech.com/u/87d05fcf9c8ef92987904fb24faf4806.jpeg",
+              "https://img.sanishtech.com/u/910185b9a25592098f9a69aa0b224462.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-07",
+              nama: "Jambu Batu",
+              saintifik: "Psidium guajava",
+              keterangan: "Boleh menyesuaikan diri dengan pelbagai jenis tanah seperti tanah berlempung atau berpasir, tetapi elakkan tanah yang sentiasa berair.",
+              inovasi: [
+              "Bidang Makanan dan Minuman: Snek berkhasiat→Keropok jambu, kepingan kering rangup, atau jambu manisan rendah gula. Menggantikan snek yang tinggi kandungan lemak dan gula.",
+              "Bidang Kosmetik dan Penjagaan Diri: Ekstrak antioksidan→Digunakan sebagai bahan aktif dalam krim muka, losyen badan, atau serum. Membantu melambatkan penuaan kulit dan melindungi daripada kerosakan akibat sinaran UV.",
+              "Bidang Pertanian dan Alam Sekitar: Baja organik→Sisa pemprosesan buah, daun dan dahan jambu boleh dikompos menjadi baja kaya nutrien, mengurangkan sisa buangan dan menggantikan baja kimia. Pengawet makanan semula jadi→Sebatian dalam daun jambu boleh menghalang pertumbuhan kulat dan bakteria. Boleh digunakan sebagai pengawet selamat untuk memanjangkan jangka hayat buah-buahan lain."
+              ],
+              gambarRujukan: [
+              "https://img.sanishtech.com/u/399febc1be2b583c023b3d3a6b4decc4.jpeg",
+              "https://img.sanishtech.com/u/0f72d39ead5a7104fa3a244acd1a8a46.jpeg",
+              "https://img.sanishtech.com/u/76b54d9b8077452f76277b548965d5d2.jpeg",
+              "https://img.sanishtech.com/u/d6420fe9f250b3b8f629c68b3a3c389b.jpeg",
+              "https://img.sanishtech.com/u/2b9a09e6cad14fe2112ac49fea702096.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-08",
+              nama: "Pokok buah nangka",
+              saintifik: "Artocarpus heterophyllus",
+              keterangan: "sesuai di tanah aluvium atau tanah liat berpasir dan elakkan tanah yang sentiasa berair atau berlopak",
+              inovasi:[
+              "Serbaguna:Buah mudah menjadi sayur, boleh dimakan dengan segar, boleh dijadikan jem dan kerepek.Selain itu, biji buah boleh direbus atau digoreng",
+              "Produk kesihatan:Rebusan kulit atau batang kulit digunakan untuk kawal gula darah ringan.(perlu rujukan daripada doktor atau pakar kesihatan)"
+              ],
+              gambarRujukan:[
+              "https://img.sanishtech.com/u/db7f9122ad54d478a9dbfce821a6a65c.jpeg",
+              "https://img.sanishtech.com/u/a58578ecaf07519481c44806e15ce536.jpeg",
+              "https://img.sanishtech.com/u/2613cb5d9b61dfb9cea595d4364c4efc.jpeg",
+              "https://img.sanishtech.com/u/5032209a9a84a9818ca4990f2d3c71c9.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-09",
+              nama: "Limau Kasturi",
+              saintifik: "Citrus × microcarpa",
+              keterangan: "Campuran tanah yang sesuai: tanah kebun + sedikit pasir + kompos.",
+              inovasi: [
+              "Makanan dan Minuman : Teh dan minuman herba:Campur daun kering limau kasturi dengan daun teh; sifat antiseptik & melegakan tekak. Gula-gula lembut dan jeli:Tinggi vitamin C.",
+              "Kesihatan : Ekstrak bantu kawal kolesterol, tekanan darah. Ubat kumur semula jadi. Minyak pati untuk aromaterapi.",
+              "Pertanian: Bioinsektisida semula jadi, sisa jadi baja organik."
+              ],
+              gambarRujukan: [
+              "https://img.sanishtech.com/u/ecec8dd42d98773ec2d6d9e994e5138c.jpeg",
+              "https://img.sanishtech.com/u/5c97b3d0d2f34ef974bbde0dab142e15.jpeg",
+              "https://img.sanishtech.com/u/8367ab900125f29d70cac00dcbc2c7c8.jpeg",
+              "https://img.sanishtech.com/u/dc3c1107755c566b3797f84ea65df63f.jpeg",
+              "https://img.sanishtech.com/u/6a8513e4883e8acb67b9316ccdb1606e.jpeg",
+              "https://img.sanishtech.com/u/ee7354e72bc65cb2f3b78fb6b290ee15.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-10",
+              nama: "Berbaru bulu",
+              saintifik: "Hibiscus tiliaceus Variegata",
+              keterangan: "tumbuh baik di pelbagai jenis tanah seperti tanah berpasir, tanah aluvium, atau tanah liat berpasir, asalkan mempunyai saliran air yang baik",
+              inovasi:[
+              "Serat batang:Buat tali, jaring,kertas atau kain kasar yang tahan air garam.",
+              "Bunga dan daun:Bunga boleh jadi pewarna semula jadi dan daun boleh digunakan sebagai pembalut makanan tradisional."
+              ],
+              gambarRujukan:[
+              "https://img.sanishtech.com/u/29259d78b80f0105bc25c9e1304357a9.jpeg",
+              "https://img.sanishtech.com/u/306f7cc1ac1ee9f93e665623be690bce.jpeg",
+              "https://img.sanishtech.com/u/d7d10eca739d6f72a06d261e292f09be.jpeg",
+              "https://img.sanishtech.com/u/175ef192e02b95306dcd267133878e18.jpeg",
+              "https://img.sanishtech.com/u/91046362654db3d868ad6f0976172d99.jpeg",
+              "https://img.sanishtech.com/u/0614c36b4586716180c6c6c82d6907c2.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-11",
+              nama: "Andong merah",
+              saintifik: "Cordyline fruticosa",
+              keterangan: "Sesuai di tanah gembur, kaya bahan organik, dan mempunyai saliran air yang baik.",
+              inovasi: [
+              "Bidang Kesihatan: Rebusan akar dan daun untuk kelegaan demam, sakit kepala dan masalah perut ringan.",
+              "Bidang kesenian: Daun berwarna terang untuk hiasan bunga manggar, perkahwinan, upacara adat."
+              ],
+              gambarRujukan:[
+              "https://img.sanishtech.com/u/6dec6b3631a01c6187f945a5bb581d40.jpeg",
+              "https://img.sanishtech.com/u/d2bb286c4fd046378a792364da2d4f7f.jpeg",
+              "https://img.sanishtech.com/u/7ae376b1307cabc903767253553b53f2.jpeg",
+              "https://img.sanishtech.com/u/17919351c7fd3e698b0c7f6a98ef9a46.jpeg",
+              "https://img.sanishtech.com/u/0cf5e4ce621125da80704d650e8c8846.jpeg",
+              "https://img.sanishtech.com/u/8249896b7902a332a648465b8d3ee3d7.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-12",
+              nama: "Bunga raya",
+              saintifik: "Hibiscus rosa-sinensis",
+              keterangan: "tumbuh subur di tanah gembur, kaya dengan bahan organik, dan saliran air yang baik.Boleh juga menyesuaikan diri di tanah berlempung atau berpasir, asalkan tidak berair bertakung.",
+              inovasi:[
+              "Ubat tradisional:Rebusan bunga untuk legakan batuk, sejukkan badan. Sapu pes daun pada lebam atau bisul."
+              ],
+              gambarRujukan:[
+              "https://img.sanishtech.com/u/dda04a30194b64da2ca31ded71b1d8b4.jpeg",
+              "https://img.sanishtech.com/u/9faca03de9005effc5ebbbe26fe921dc.jpeg",
+              "https://img.sanishtech.com/u/ff57ed1ff2a89bb5f709c0bc9ae8628e.jpeg",
+              "https://img.sanishtech.com/u/5dcd38d6526dfd18ca64c6a36a8a00b3.jpeg",
+              "https://img.sanishtech.com/u/596f6d9a1af562eb83de1714c53d2a01.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-13",
+              nama: "Kubis bunga",
+              saintifik: "Brassica oleracea var. botrytis",
+              keterangan: "Tumbuh paling baik di tanah gembur,dalam,kaya bahan organik,dan mempunyai saliran air yang sangat baik.",
+              inovasi:[
+              "Produk sampingan: Daun luar yang rosak boleh dijadikan baja hijau atau makanan ternakan.",
+              "Simpan Lama: Selepas tuai,balut akar dengan tanah lembap,gantung di tempat teduh kekal segar 2-3 minggu."
+              ],
+              gambarRujukan:[
+              "https://img.sanishtech.com/u/20e4d4f46e0a27c32b1b198981c44bfa.jpeg",
+              "https://img.sanishtech.com/u/39abe4dca1be17ddb92b0377efb4a4a0.jpeg",
+              "https://img.sanishtech.com/u/46e462a84d9e4bb735a9e6fb70df46c1.jpeg",
+              "https://img.sanishtech.com/u/6be303c2e2acafb5b5a8aa7b9c07a8ae.jpeg",
+              "https://img.sanishtech.com/u/b3af7c42645c93cacfed83a9ce97e4b9.jpeg",
+              "https://img.sanishtech.com/u/a5dc86bc8ae0685c9f06adb0bfe8be5b.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-14",
+              nama: "Bunga Tanjung / Bunga Soka",
+              saintifik: "Ixora coccinea",
+              keterangan: "Tumbuh subur di tanah gembur, kaya bahan organik, dan saliran air yang lancar.",
+              inovasi: [
+              "Kosmetik: Ekstrak minyak pati untuk minyak wangi, sabun, serum.",
+              "Kesihatan: Antibakteria untuk produk penjagaan mulut.",
+              "Reka bentuk: Motif bunga untuk corak pakaian dan seni bina."
+              ],
+              gambarRujukan: [
+              "https://img.sanishtech.com/u/802c839332edac956e01096f7f7bf470.jpeg",
+              "https://img.sanishtech.com/u/c22ce38c71220906181d007363149ece.jpeg",
+              "https://img.sanishtech.com/u/fc2d36874745910a52032027c8faae9b.jpeg",
+              "https://img.sanishtech.com/u/28ff3762238a5bde39505f930bb297b7.jpeg",
+              "https://img.sanishtech.com/u/226b65801b8240bd0d3c449ce3345d45.jpeg",
+              "https://img.sanishtech.com/u/2d364809ecf327e7de4dc10f42cb0b10.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-15",
+              nama: "Daun Emas",
+              saintifik: "Sanchezia speciosa",
+              keterangan: "Tumbuh subur di tanah gembur,kaya bahan organik,lembap tetapi mempunyai saliran air yang sangat baik.",
+              inovasi:[
+              "Pagar rendah untuk kawasan separa teduh.",
+              "Penarik rama-rama dan lebah untuk pendebungaan."
+              ],
+              gambarRujukan:[
+              "https://img.sanishtech.com/u/a9dacb883e15cdd1910e43266d1a6999.jpeg",
+              "https://img.sanishtech.com/u/3fe5c04a6c8bc2b4b256b4dedad859b7.jpeg",
+              "https://img.sanishtech.com/u/0deeada62cec326bcbb96fac03bc6b94.jpeg",
+              "https://img.sanishtech.com/u/cf290a7b56fa46c901f732311da5707b.jpeg",
+              "https://img.sanishtech.com/u/e847989e0618bdc4e02ec7fe9fc187e1.jpeg",
+              "https://img.sanishtech.com/u/e4272ee0a57bfeec1765982e0c11f3cd.jpeg",
+              "https://img.sanishtech.com/u/89960cb06ad308b3eefe2e7d739872df.jpeg",
+              "https://img.sanishtech.com/u/0103213adf8083be8162601b523615af.jpeg"
+              ]
+        },
+        {
+              kod: "POKOK-16",
+              nama: "Pokok Darah Tanduk",
+              saintifik: "Ochrosia elliptica",
+              keterangan: "Tumbuh baik di tanah berpasir atau tanah liat berpasir, asalkan saliran air sangat baik. Tahan kawasan pesisir.",
+              inovasi: [
+              "Kawalan hakisan pantai: Tanaman benteng semula jadi untuk menstabilkan pasir dan halang hakisan."
+              ],
+              gambarRujukan: [
+              "https://img.sanishtech.com/u/11e528940c9991bc880602f1fa36033c.jpeg",
+              "https://img.sanishtech.com/u/9a266ac5592b8660f915bc0f296adf0a.jpeg",
+              "https://img.sanishtech.com/u/377680b28617acb14c7a1ab905c440f2.jpeg",
+              "https://img.sanishtech.com/u/86a38b3fd051893cafe78b840cd3eca2.jpeg",
+              "https://img.sanishtech.com/u/f58d9f20a610bf5a2dcf11a0f2ccfa3f.jpeg",
+              "https://img.sanishtech.com/u/0f99f1d6c40a98c2c98a1b35f02d59f3.jpeg",
+              "https://img.sanishtech.com/u/1c70dd51c07084b2d306be0a47617362.jpeg",
+              "https://img.sanishtech.com/u/5d481243402dda9c03a761183305a529.jpeg"
+              ]
+        }
+        ];
+
+        // Simpan embedding rujukan yang sudah dikira (dicache) di sini, supaya
+        // tidak perlu download + infer gambar berulang kali setiap kali "Imbas" ditekan.
+        let cacheRujukan = []; // { pokok, embedding }
+
+        async function mulakanKamera() {
+            try {
+                const strim = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
+                    audio: false
+                });
+                video.srcObject = strim;
+                await video.play();
+                statusTeks.textContent = "✅ Kamera sedia. Memuatkan sistem AI...";
+                await muatkanModel();
+            } catch (err) {
+                console.error(err);
+                statusTeks.textContent = "❌ Gagal buka kamera. Sila benarkan akses kamera dalam pelayar.";
+            }
+        }
+
+        async function muatkanModel() {
+            try {
+                model = await mobilenet.load({ version: 2, alpha: 1.0 });
+                statusTeks.textContent = "📥 Memuat turun & menyediakan gambar rujukan (sekali sahaja)...";
+                await sediakanCacheRujukan();
+                statusTeks.textContent = "✅ Sistem sedia! Tekan Imbas untuk mula.";
+                butangImbas.disabled = false;
+            } catch (err) {
+                console.error(err);
+                statusTeks.textContent = "❌ Gagal muatkan sistem AI.";
+            }
+        }
+
+        // Muatkan SEMUA gambar rujukan & kira embedding SEKALI SAHAJA semasa loading,
+        // bukan setiap kali klik "Imbas". Ini yang buat scan jadi laju lepas ni.
+        async function sediakanCacheRujukan() {
+            const semuaTugas = [];
+            let jumlahGambar = 0;
+            senaraiPokok.forEach(p => jumlahGambar += p.gambarRujukan.length);
+            let siap = 0;
+
+            for (const pokok of senaraiPokok) {
+                for (const urlGambar of pokok.gambarRujukan) {
+                    semuaTugas.push((async () => {
+                        try {
+                            const imej = await muatGambar(urlGambar);
+                            if (imej) {
+                                // tf.tidy tak boleh guna dengan async, jadi kita dispose manual
+                                const embedding = model.infer(imej, true);
+                                // simpan salinan data (bukan tensor) supaya jimat memori GPU
+                                const dataEmbedding = embedding.dataSync();
+                                embedding.dispose();
+                                cacheRujukan.push({ pokok, embedding: dataEmbedding });
+                            } else {
+                                console.warn("Gagal muat gambar rujukan (mungkin isu CORS/network):", urlGambar);
+                            }
+                        } catch (err) {
+                            console.warn("Ralat proses gambar rujukan:", urlGambar, err);
+                        } finally {
+                            siap++;
+                            const peratus = Math.round((siap / jumlahGambar) * 100);
+                            progressWrap.style.display = "block";
+                            progressBar.style.width = peratus + "%";
+                            statusTeks.textContent = `📥 Menyediakan gambar rujukan... (${siap}/${jumlahGambar})`;
+                        }
+                    })());
+                }
+            }
+
+            await Promise.all(semuaTugas);
+            progressWrap.style.display = "none";
+
+            if (cacheRujukan.length === 0) {
+                statusTeks.textContent = "⚠️ Tiada gambar rujukan berjaya dimuat. Semak sambungan internet / CORS pada pelayan gambar.";
+            }
+        }
+
+        function muatGambar(url) {
+            return new Promise((resolve) => {
+                const imej = new Image();
+                imej.crossOrigin = "anonymous";
+                imej.referrerPolicy = "no-referrer";
+                const masaTamat = setTimeout(() => resolve(null), 10000); // jangan tunggu selama-lamanya
+                imej.onload = () => { clearTimeout(masaTamat); resolve(imej); };
+                imej.onerror = () => { clearTimeout(masaTamat); resolve(null); };
+                imej.src = url;
+            });
+        }
+
+        function jarakKosinus(a, b) {
+            // a, b ialah Float32Array embedding. Kira cosine similarity secara manual (laju, tiada tensor overhead).
+            let titik = 0, magA = 0, magB = 0;
+            for (let i = 0; i < a.length; i++) {
+                titik += a[i] * b[i];
+                magA += a[i] * a[i];
+                magB += b[i] * b[i];
+            }
+            const similarity = titik / (Math.sqrt(magA) * Math.sqrt(magB));
+            return similarity; // -1 hingga 1, lagi tinggi lagi sama
+        }
+
+        async function mulakanPengecaman() {
+            if (!model) return;
+            if (cacheRujukan.length === 0) {
+                statusTeks.textContent = "⚠️ Tiada gambar rujukan dalam cache. Tak boleh banding.";
+                return;
+            }
+
+            statusTeks.textContent = "🔍 Sedang menganalisis...";
+            maklumatKotak.style.display = "none";
+            butangImbas.disabled = true;
+
+            kanvas.width = video.videoWidth || 640;
+            kanvas.height = video.videoHeight || 480;
+            konteks.drawImage(video, 0, 0, kanvas.width, kanvas.height);
+
+            const ciriTerimbasTensor = model.infer(kanvas, true);
+            const ciriTerimbas = ciriTerimbasTensor.dataSync();
+            ciriTerimbasTensor.dispose();
+
+            let padananTerbaik = null;
+            let skorTertinggi = -Infinity;
+
+            for (const item of cacheRujukan) {
+                const similarity = jarakKosinus(ciriTerimbas, item.embedding);
+                const keyakinan = Math.round(similarity * 100);
+                if (keyakinan > skorTertinggi) {
+                    skorTertinggi = keyakinan;
+                    padananTerbaik = item.pokok;
+                }
+            }
+
+            if (padananTerbaik && skorTertinggi >= 40) {
+                statusTeks.textContent = "✅ Dikenal pasti";
+                namaPokok.textContent = padananTerbaik.nama;
+                namaSaintifik.textContent = padananTerbaik.saintifik;
+                keteranganPokok.textContent = padananTerbaik.keterangan;
+                kegunaanPokok.textContent = padananTerbaik.inovasi.join(" | ");
+                tahapPadanan.textContent = `${skorTertinggi}%`;
+                maklumatKotak.style.display = "block";
+            } else {
+                statusTeks.textContent = `❌ Tak dapat kenal pasti (Padanan: ${skorTertinggi > -Infinity ? skorTertinggi : 0}%). Cuba lagi.`;
+            }
+            butangImbas.disabled = false;
+        }
+
+        butangImbas.addEventListener('click', mulakanPengecaman);
+        window.addEventListener('load', mulakanKamera);
+    </script>
+</body>
+</html>
